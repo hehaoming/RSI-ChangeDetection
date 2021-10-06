@@ -1,1 +1,1 @@
-from .NestedUNet_MSOF import NestedUNet
+from .AttetionUNet import Sim_Att_UNet
