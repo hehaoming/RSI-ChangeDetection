@@ -72,32 +72,32 @@ class Attention_block(nn.Module):
 class AttU_Net(nn.Module):
     def __init__(self, img_ch=3, output_ch=1):
         super(AttU_Net, self).__init__()
-
+        channel_list = [32, 64, 128, 256, 512]
         self.Maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.Conv1 = conv_block(ch_in=img_ch, ch_out=64)
-        self.Conv2 = conv_block(ch_in=64, ch_out=128)
-        self.Conv3 = conv_block(ch_in=128, ch_out=256)
-        self.Conv4 = conv_block(ch_in=256, ch_out=512)
-        self.Conv5 = conv_block(ch_in=512, ch_out=1024)
+        self.Conv1 = conv_block(ch_in=img_ch, ch_out=channel_list[0])
+        self.Conv2 = conv_block(ch_in=channel_list[0], ch_out=channel_list[1])
+        self.Conv3 = conv_block(ch_in=channel_list[1], ch_out=channel_list[2])
+        self.Conv4 = conv_block(ch_in=channel_list[2], ch_out=channel_list[3])
+        self.Conv5 = conv_block(ch_in=channel_list[3], ch_out=channel_list[4])
 
-        self.Up5 = up_conv(ch_in=1024, ch_out=512)
-        self.Att5 = Attention_block(F_g=512, F_l=512, F_int=256)
-        self.Up_conv5 = conv_block(ch_in=1024, ch_out=512)
+        self.Up5 = up_conv(ch_in=channel_list[4], ch_out=channel_list[3])
+        self.Att5 = Attention_block(F_g=channel_list[3], F_l=channel_list[3], F_int=channel_list[2])
+        self.Up_conv5 = conv_block(ch_in=channel_list[4], ch_out=channel_list[3])
 
-        self.Up4 = up_conv(ch_in=512, ch_out=256)
-        self.Att4 = Attention_block(F_g=256, F_l=256, F_int=128)
-        self.Up_conv4 = conv_block(ch_in=512, ch_out=256)
+        self.Up4 = up_conv(ch_in=channel_list[3], ch_out=channel_list[2])
+        self.Att4 = Attention_block(F_g=channel_list[2], F_l=channel_list[2], F_int=channel_list[1])
+        self.Up_conv4 = conv_block(ch_in=channel_list[3], ch_out=channel_list[2])
 
-        self.Up3 = up_conv(ch_in=256, ch_out=128)
-        self.Att3 = Attention_block(F_g=128, F_l=128, F_int=64)
-        self.Up_conv3 = conv_block(ch_in=256, ch_out=128)
+        self.Up3 = up_conv(ch_in=channel_list[2], ch_out=channel_list[1])
+        self.Att3 = Attention_block(F_g=channel_list[1], F_l=channel_list[1], F_int=channel_list[0])
+        self.Up_conv3 = conv_block(ch_in=channel_list[2], ch_out=channel_list[1])
 
-        self.Up2 = up_conv(ch_in=128, ch_out=64)
-        self.Att2 = Attention_block(F_g=64, F_l=64, F_int=32)
-        self.Up_conv2 = conv_block(ch_in=128, ch_out=64)
+        self.Up2 = up_conv(ch_in=channel_list[1], ch_out=channel_list[0])
+        self.Att2 = Attention_block(F_g=channel_list[0], F_l=channel_list[0], F_int=channel_list[0] // 2)
+        self.Up_conv2 = conv_block(ch_in=channel_list[1], ch_out=channel_list[0])
 
-        self.Conv_1x1 = nn.Conv2d(64, output_ch, kernel_size=1, stride=1, padding=0, bias=True)
+        self.Conv_1x1 = nn.Conv2d(channel_list[0], output_ch, kernel_size=1, stride=1, padding=0, bias=True)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -147,8 +147,8 @@ class DiffBlock(nn.Module):
 
     def __init__(self, in_channel):
         super(DiffBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channel, 5 * in_channel, kernel_size=1, padding=0, stride=1, bias=True)
-        self.conv2 = nn.Conv2d(in_channel, 5 * in_channel, kernel_size=1, padding=0, stride=1, bias=True)
+        self.conv1 = nn.Conv2d(in_channel, in_channel, kernel_size=1, padding=0, stride=1, bias=True)
+        self.conv2 = nn.Conv2d(in_channel, in_channel, kernel_size=1, padding=0, stride=1, bias=True)
         self.conv = nn.Sequential(
             nn.Conv2d(2 * in_channel + 5, in_channel, kernel_size=1, stride=1, padding=0, bias=True),
             nn.ReLU(inplace=True),
@@ -160,15 +160,15 @@ class DiffBlock(nn.Module):
         )
 
     def forward(self, x1, x2):
-        feat1 = torch.chunk(self.conv1(x1), 5, dim=1)
-        feat2 = torch.chunk(self.conv2(x2), 5, dim=1)
-        diff1 = torch.mean(torch.abs(feat1[0] - feat2[0]), dim=1, keepdim=True)
-        diff2 = torch.unsqueeze(F.cosine_similarity(feat1[1], feat2[1], dim=1), dim=1)
+        feat1 = self.conv1(x1)
+        feat2 = self.conv2(x2)
+        diff1 = torch.mean(torch.abs(feat1 - feat2), dim=1, keepdim=True)
+        diff2 = torch.unsqueeze(F.cosine_similarity(feat1, feat2, dim=1), dim=1)
         diff3 = torch.unsqueeze(
-            F.cosine_similarity(feat1[2] - torch.mean(feat1[2], dim=1), feat2[2] - torch.mean(feat2[2], dim=1), dim=1),
+            F.cosine_similarity(feat1 - torch.mean(feat1, dim=1), feat2 - torch.mean(feat2, dim=1), dim=1),
             dim=1)
-        diff4 = torch.norm(feat1[3] - feat2[3], p=2, dim=1, keepdim=True)
-        diff5 = torch.norm(torch.abs(feat1[4] - feat2[4]), p=float('inf'), dim=1, keepdim=True)
+        diff4 = torch.norm(feat1 - feat2, p=2, dim=1, keepdim=True)
+        diff5 = torch.norm(torch.abs(feat1 - feat2), p=float('inf'), dim=1, keepdim=True)
         return self.conv(torch.cat((x1, x2, diff1, diff2, diff3, diff4, diff5), dim=1))
 
 
@@ -176,26 +176,26 @@ class Sim_Att_UNet(nn.Module):
 
     def __init__(self):
         super(Sim_Att_UNet, self).__init__()
-        channel_list = [64, 128, 256, 512]
+        channel_list = [32, 64, 128, 256, 512]
         self.ex_stage = AttU_Net()
         self.diff1 = DiffBlock(channel_list[0])
         self.diff2 = DiffBlock(channel_list[1])
         self.diff3 = DiffBlock(channel_list[2])
         self.diff4 = DiffBlock(channel_list[3])
 
-        self.Up4 = up_conv(ch_in=512, ch_out=256)
-        self.Att4 = Attention_block(F_g=256, F_l=256, F_int=128)
-        self.Up_conv4 = conv_block(ch_in=512, ch_out=256)
+        self.Up4 = up_conv(ch_in=channel_list[3], ch_out=channel_list[2])
+        self.Att4 = Attention_block(F_g=channel_list[2], F_l=channel_list[2], F_int=channel_list[1])
+        self.Up_conv4 = conv_block(ch_in=channel_list[3], ch_out=channel_list[2])
 
-        self.Up3 = up_conv(ch_in=256, ch_out=128)
-        self.Att3 = Attention_block(F_g=128, F_l=128, F_int=64)
-        self.Up_conv3 = conv_block(ch_in=256, ch_out=128)
+        self.Up3 = up_conv(ch_in=channel_list[2], ch_out=channel_list[1])
+        self.Att3 = Attention_block(F_g=channel_list[1], F_l=channel_list[1], F_int=channel_list[0])
+        self.Up_conv3 = conv_block(ch_in=channel_list[2], ch_out=channel_list[1])
 
-        self.Up2 = up_conv(ch_in=128, ch_out=64)
-        self.Att2 = Attention_block(F_g=64, F_l=64, F_int=32)
-        self.Up_conv2 = conv_block(ch_in=128, ch_out=64)
+        self.Up2 = up_conv(ch_in=channel_list[1], ch_out=channel_list[0])
+        self.Att2 = Attention_block(F_g=channel_list[0], F_l=channel_list[0], F_int=channel_list[0] // 2)
+        self.Up_conv2 = conv_block(ch_in=channel_list[1], ch_out=channel_list[0])
 
-        self.Conv_1x1 = nn.Conv2d(64, 1, kernel_size=1, stride=1, padding=0, bias=True)
+        self.Conv_1x1 = nn.Conv2d(channel_list[0], 1, kernel_size=1, stride=1, padding=0, bias=True)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x1, x2):
@@ -230,7 +230,7 @@ class Sim_Att_UNet(nn.Module):
 if __name__ == "__main__":
     from torchvision.io import read_image
 
-    model = Sim_Att_UNet()
-    img1, img2 = torch.randn(size=(1, 3, 512, 512)), torch.randn(size=(1, 3, 512, 512))
+    model = Sim_Att_UNet().cuda()
+    img1, img2 = torch.randn(size=(1, 3, 512, 512)).cuda(), torch.randn(size=(1, 3, 512, 512)).cuda()
     p1, p2, c = model(img1, img2)
     print(p1.size(), p2.size(), c.size())
