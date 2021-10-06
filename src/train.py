@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # 优化器
     optimizer = Adam(module.parameters(), lr=args.lr)
     # 训练及验证
-    for epoch in range(args.epochs):
+    for epoch in range(1,args.epochs+1):
         fit_one_epoch(module=module, train_data=train_data, test_data=test_data, args=args, optimizer=optimizer,
                       loss_func=loss_func, is_cuda=(device.type != 'cpu'), epoch=epoch, train_step=train_step,
                       test_step=test_step, device=device)

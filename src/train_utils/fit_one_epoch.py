@@ -1,3 +1,6 @@
+import os
+
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from src.utils import *
@@ -6,14 +9,14 @@ from src.utils import *
 def fit_one_epoch(module, train_data, test_data, args, optimizer, loss_func,
                   is_cuda, epoch, train_step, test_step, device):
     module.train()
-    print("start train Epoch: {}".format(epoch), end='\n')
-
+    # print("start train Epoch: {}".format(epoch), end='\n')
+    writer = SummaryWriter(os.path.join(args.weight_dir, 'runs'))
     metricRe_s1 = MetricRe(device)
     metricRe_s2 = MetricRe(device)
     metricRe_ch = MetricRe(device)
     lossRe = LossRe(device)
 
-    with tqdm(total=train_step, desc="Epoch{}".format(epoch), postfix=dict, mininterval=0.3) as pbar:
+    with tqdm(total=train_step, desc="train_Epoch_{}".format(epoch), postfix=dict, mininterval=0.3) as pbar:
         for step, (x1, x2, x1_label, x2_label, change) in enumerate(train_data):
             if is_cuda:
                 x1 = x1.cuda()
@@ -68,6 +71,7 @@ def fit_one_epoch(module, train_data, test_data, args, optimizer, loss_func,
                 "F1": x1_metric[2] * 0.2 + x2_metric[2] * 0.2 + c_metric[2] * 0.6
             })
             pbar.update(1)
+    writer.add_scalars('loss_T', lossRe.value(), epoch)
 
     module.eval()
     metricRe_s1.reset()
@@ -75,8 +79,8 @@ def fit_one_epoch(module, train_data, test_data, args, optimizer, loss_func,
     metricRe_ch.reset()
     lossRe.reset()
 
-    print("start test Epoch:{}".format(epoch))
-    with tqdm(total=test_step, desc="Epoch{}".format(epoch), postfix=dict, mininterval=0.3) as pbar:
+    # print("start test Epoch:{}".format(epoch))
+    with tqdm(total=test_step, desc="test_Epoch_{}".format(epoch), postfix=dict, mininterval=0.3) as pbar:
         for step, (x1, x2, x1_label, x2_label, change) in enumerate(test_data):
             if is_cuda:
                 x1 = x1.cuda()
@@ -122,8 +126,14 @@ def fit_one_epoch(module, train_data, test_data, args, optimizer, loss_func,
                     "recall": x1_metric[1] * 0.2 + x2_metric[1] * 0.2 + c_metric[1] * 0.6,
                     "F1": x1_metric[2] * 0.2 + x2_metric[2] * 0.2 + c_metric[2] * 0.6
                 })
+
                 pbar.update(1)
-        # if  epoch % args.write_step == 0:
-        #
-        #     weight_path = 'epoch_{}-loss_{:.3f}-F1_{:.3f}.pth'.format(epoch, loss_set.item(), f1.item())
-        #     torch.save(module.state_dict(), os.path.join(args.root, weight_path))
+
+        writer.add_scalars('F1', x1_metric[2] * 0.2 + x2_metric[2] * 0.2 + c_metric[2] * 0.6,epoch)
+        writer.add_scalars('recall', x1_metric[1] * 0.2 + x2_metric[1] * 0.2 + c_metric[1] * 0.6,epoch)
+        writer.add_scalars('pres',x1_metric[0] * 0.2 + x2_metric[0] * 0.2 + c_metric[0] * 0.6,epoch)
+        writer.add_scalars('loss_V', lossRe.value(),epoch)
+
+        if  epoch % args.write_step == 0:
+            weight_path = 'epoch_{}-F1_{:.3f}.pth'.format(epoch, x1_metric[2] * 0.2 + x2_metric[2] * 0.2 + c_metric[2] * 0.6)
+            torch.save(module.state_dict(), os.path.join(args.weight_dir, weight_path))
