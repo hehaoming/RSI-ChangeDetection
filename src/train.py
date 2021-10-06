@@ -21,7 +21,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
     val = val()
-    train_data, test_data = get_data(root=args.root, batch_size=args.batch_size, total_num=2000, test_num=400)
+    train_data, test_data = get_data(root=args.root, batch_size=args.batch_size, num_workers=1,
+                                     train_stage=True, split_train=0.8)
     # 加速设备
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # 网络模型
