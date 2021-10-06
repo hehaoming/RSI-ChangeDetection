@@ -2,8 +2,8 @@ import logging
 import torch
 import argparse
 from dataset.RSIdataset import get_data
-from module import NestedUNet
-from losses import BalancedBinaryCrossEntropy, BinaryDiceLoss
+from module import Sim_Att_UNet
+from losses import HybridLoss
 from torch.optim import Adam
 from train_utils.fit_one_epoch import fit_one_epoch
 from utils.evalute import val
@@ -11,7 +11,7 @@ from utils.save_weights import save_model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="初始化参数")
-    parser.add_argument('--root', dest='root', type=str, default=r'../data', help="数据集的路径")
+    parser.add_argument('--root', dest='root', type=str, default=r'F:\mahcenglin\trainData', help="数据集的路径")
     parser.add_argument('--epochs', dest='epochs', type=int, default=100, help="训练的完整轮数")
     parser.add_argument('--batch_size', dest="batch_size", type=int, default=1, help="每一个batch的大小")
     parser.add_argument('--lr', dest='lr', type=float, default=0.003, help="学习率")
@@ -26,6 +26,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     print(args)
+    train_step = int((2000 * args.split_train) / args.batch_size)
+    test_step = int((2000 * (1 - args.split_train)) / args.batch_size)
     train_data, test_data = get_data(root=args.root, batch_size=args.batch_size, num_workers=args.num_workers,
                                      train_stage=args.train_stage, split_train=args.split_train)
     # 加速设备
@@ -33,20 +35,20 @@ if __name__ == '__main__':
     # 评估类
     val = val(device)
     # 网络模型
-    module = NestedUNet()
+    module = Sim_Att_UNet()
     if device.type != 'cpu':
         module.cuda()
-        if args.cudnn:
-            torch.backends.cudnn.benchmark = True
+        # if args.cudnn:
+        #     torch.backends.cudnn.benchmark = True
     # 损失函数
-    loss_1 = BalancedBinaryCrossEntropy()
-    loss_2 = BinaryDiceLoss()
+    loss_func = HybridLoss()
     # 优化器
     optimizer = Adam(module.parameters(), lr=args.lr)
     # 训练及验证
     for epoch in range(args.epochs):
         fit_one_epoch(module=module, train_data=train_data, test_data=test_data,args=args, optimizer=optimizer,
-                      loss_dice=loss_1, is_cuda=(device.type !='cpu'), val=val, epoch=epoch)
+                      loss_func=loss_func, is_cuda=(device.type !='cpu'), val=val, epoch=epoch, train_step=train_step,
+                      test_step=test_step, device=device)
 
-        if epoch > 0 and epoch % 10 == 0:
-            save_model(module, epoch, args.weight_dir)
+        # if epoch > 0 and epoch % 10 == 0:
+        #     save_model(module, epoch, args.weight_dir)

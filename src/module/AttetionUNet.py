@@ -231,6 +231,6 @@ if __name__ == "__main__":
     from torchvision.io import read_image
 
     model = Sim_Att_UNet()
-    img1, img2 = torch.randn(size=(1, 3, 256, 256)), torch.randn(size=(1, 3, 256, 256))
+    img1, img2 = torch.randn(size=(1, 3, 512, 512)), torch.randn(size=(1, 3, 512, 512))
     p1, p2, c = model(img1, img2)
     print(p1.size(), p2.size(), c.size())
