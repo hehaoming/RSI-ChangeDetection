@@ -134,3 +134,4 @@ dmypy.json
 
 trainData/*
 trainData/*/*
+data_split.json
