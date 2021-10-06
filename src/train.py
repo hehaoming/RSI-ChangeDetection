@@ -1,4 +1,4 @@
-
+import logging
 import torch
 import argparse
 from dataset.RSIdataset import get_data
@@ -18,12 +18,16 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', dest='num_workers', type=int, default=4, help="加载数据的进程数")
     parser.add_argument('--cudnn', dest='cudnn', type=bool, default=True, help="cuDNN对多个卷积算法进行基准测试并选择最快的")
     parser.add_argument('--weight_dir', dest='--weight_dir', type=str, default='weights', help="模型权重保存的位置")
+    parser.add_argument('--split_train', dest='--split_train', type=float, default=0.8, help="数据集拆分")
+    parser.add_argument('--train_stage', dest='--train_stage', type=bool, default=True, help="数据模式")
+
     args = parser.parse_args()
     print(args)
     val = val()
-    train_data, test_data = get_data(root=args.root, batch_size=args.batch_size, total_num=2000, test_num=400)
+    train_data, test_data = get_data(root=args.root, batch_size=args.batch_size, num_workers=args.num_workers,
+                                     train_stage=args.train_stage, split_train=args.split_train)
     # 加速设备
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # 网络模型
     module = NestedUNet()
     if torch.cuda.is_available():
@@ -37,7 +41,9 @@ if __name__ == '__main__':
     optimizer = Adam(module.parameters(), lr=args.lr)
     # 训练及验证
     for epoch in range(args.epochs):
+
         fit_one_epoch(module=module, train_data=train_data, test_data=test_data, optimizer=optimizer,
                       loss_dice=loss_1, is_cuda=True, val=val, epoch=epoch)
+
         if epoch > 0 and epoch % 10 == 0:
             save_model(module, epoch, args.weight_dir)
