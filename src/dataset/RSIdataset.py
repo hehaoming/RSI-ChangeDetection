@@ -9,7 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 
 
 class RSIdataset(Dataset):
-    def __init__(self, root, index_list):
+    def __init__(self, root: str, index_list: list):
         super(RSIdataset, self).__init__()
         self.images_list = [
             [os.path.join(root, "images", str(i) + "_1.png"), os.path.join(root, "images", str(i) + "_2.png")]
